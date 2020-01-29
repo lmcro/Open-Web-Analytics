@@ -676,47 +676,50 @@ class owa_coreAPI {
 			
 			// If the module does not have nav links, register them. needed in case this function is called twice on
 			// same view.
-			if (empty($v->nav_links)) {
+			if ( empty( $v->nav_links ) ) {
+				
 				$v->registerNavigation();
 			}
 			
 			$module_nav = $v->getNavigationLinks();
 			
 			if ( $module_nav ) {
+
 				//loop through returned nav array
-				foreach ($module_nav as $group => $nav_links) {
+				foreach ( $module_nav as $group => $nav_links ) {
 					
-					foreach ($nav_links as $link) {	
-									
-						if (array_key_exists($group, $links)) {
-							
+					foreach ( $nav_links as $subgroup => $link ) {	
 						
-							
-							// check to see if link is already present in the main array
-							if (array_key_exists($link['anchortext'], $links[$group])) {
+						// check to see if group exists			
+						if ( array_key_exists( $group, $links ) ) {
+										
+							// check to see if subgroup is already present in the main array
+							if ( array_key_exists( $subgroup, $links[ $group ] ) ) {
 								// merge various elements?? not now.
-								//check to see if there is an existing subgroup
 								
-								if (array_key_exists('subgroup', $links[$group][$link['anchortext']])) {
+								//check to see if there is an existing set of subgroup links
+								if ( array_key_exists( 'subgroup', $links[ $group ][ $subgroup ] ) ) {
 									// if so, merge the subgroups
-									$links[$group][$link['anchortext']]['subgroup'] = array_merge($links[$group][$link['anchortext']]['subgroup'], $link['subgroup']);
-								}	
+									$links[ $group ][ $subgroup ][ 'subgroup' ] = array_merge( $links[ $group ][ $subgroup ][ 'subgroup' ], $link[ 'subgroup' ] );
+								} else {
+									
+								}
 							} else {
 								// else populate the link
-								$links[$group][$link['anchortext']] = $link;	
+								$links[$group][$subgroup] = $link;	
 							}
 							
 						} else {
-							$links[$group][$link['anchortext']] = $link;
+							$links[$group][$subgroup] = $link;
 						}
 					}					
 					
 				}
-			}
-			
+			}		
 		}
 		
 		if ( isset( $links[$group_name] ) ) { 
+	
 			return $links[$group_name];	
 		}
 	}
@@ -869,7 +872,7 @@ class owa_coreAPI {
 		$teh->setTrackerProperties( $event, $environmentals );
 								
 		// Filter XSS exploits from event properties
-		$event->cleanProperties();
+		//$event->cleanProperties();
 		
 		// do not log if the do not log property is set on the event.
 		if ($event->get('do_not_log')) {
@@ -915,7 +918,6 @@ class owa_coreAPI {
 		header('Expires: Sat, 22 Apr 1978 02:19:00 GMT');
 		header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
 		header('Cache-Control: no-store, no-cache, must-revalidate');
-		header('Cache-Control: post-check=0, pre-check=0', false);
 		header('Pragma: no-cache');
 		
 		echo owa_coreAPI::displayView($data);		
@@ -1333,8 +1335,10 @@ class owa_coreAPI {
 		
 		$time = owa_coreAPI::getNonceTimeInterval();
 		$cu = owa_coreAPI::getCurrentUser();
-		$user_id = $cu->getUserData( 'user_id' );
+		$user_id = $cu->getUserData( 'user_id' ); 
+		
 		$full_nonce = $time . $action . $user_id . 'owa_nonce';
+		
 		$nonce = substr( owa_coreAPI::saltedHash($full_nonce, 'nonce'), -12, 10);
 		
 		return $nonce;
@@ -1369,7 +1373,7 @@ class owa_coreAPI {
 						continue;
 					} else {
 						
-						$cached_salts[ $scheme.'_'.$s ] = constant("$const");
+						$cached_salts[ $f.'_'.$s ] = constant("$const");
 					}
 				}
 			}	
@@ -1511,15 +1515,6 @@ class owa_coreAPI {
 		
 		$t = new owa_template();
 		
-		//check to see if we shuld log clicks.
-		if ( ! owa_coreAPI::getSetting( 'base', 'log_dom_clicks' ) ) {
-			$options['do_not_log_clicks'] = true;
-		}
-
-		if ( ! owa_coreAPI::getSetting( 'base', 'log_dom_streams' ) ) {
-			$options['do_not_log_domstream'] = true;
-		}
-		
 		if (owa_coreAPI::getSetting('base', 'is_embedded')) {
 			
 			// needed to override the endpoint used by the js tracker
@@ -1527,8 +1522,9 @@ class owa_coreAPI {
 		}
 				
 		$t->set( 'site_id', $site_id );
-		$t->set( 'options', $options);
-		
+		$cmds = owa_coreAPI::filter( 'tracker_tag_cmds', array() );
+		$t->set( 'cmds', $cmds );
+		$t->set('options', $options);
 		$t->set_template('js_log_tag.tpl');
 		return $t->fetch();
 	}
@@ -1674,8 +1670,14 @@ class owa_coreAPI {
 	 */
 	public static function registerFilter( $filter_name, $callback, $priority = 10 ) {
 			
-		$eq = owa_coreAPI::getEventDispatch();
-		$eq->attachFilter($filter_name, $callback, $priority);
+		$ed = owa_coreAPI::getEventDispatch();
+		$ed->attachFilter($filter_name, $callback, $priority);
+	}
+	
+	public static function filter( $filter_name, $value ) {
+		
+		$ed = owa_coreAPI::getEventDispatch();
+		return $ed->filter( $filter_name, $value );
 	}
 
 }

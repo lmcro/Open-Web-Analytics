@@ -37,13 +37,13 @@ class owa_loginController extends owa_controller {
 		
 		$auth = owa_auth::get_instance();
 		$status = $auth->authenticateUser();
-		$go = $this->getParam('go');
+		$go = owa_sanitize::cleanUrl( $this->getParam('go') );
 		// if authentication is successfull
 		if ($status['auth_status'] == true) {
 			
-			if (!empty($go)) {
+			if (!empty($go)) { 
 				// redirect to url if present
-				$url = urldecode($go);
+				$url = urldecode(htmlspecialchars_decode( $go ) );
 				$this->e->debug("redirecting browser to...:". $url);
 				owa_lib::redirectBrowser($url);
 			

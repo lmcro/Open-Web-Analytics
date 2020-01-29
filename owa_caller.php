@@ -125,12 +125,14 @@ class owa_caller extends owa_base {
 		
 		/* PHP ERROR LOGGING */
 		
+		/*
 		if (defined('OWA_LOG_PHP_ERRORS')) {
 			
 			$this->e->logPhpErrors();
 		}
 		
 		set_exception_handler( array($this->e, 'logException') );
+		*/
 			
 		/* LOAD SERVICE LAYER */
 		$this->service = owa_coreAPI::serviceSingleton();
@@ -179,22 +181,10 @@ class owa_caller extends owa_base {
 	 */
 	function placeHelperPageTags($echo = true, $options = array()) {
 		
-		if(!owa_coreAPI::getRequestParam('is_robot')) {
+		if( ! owa_coreAPI::getRequestParam( 'is_robot' ) ) {
 		
-			// check to see if first hit tag is needed
-			if ( isset( $options['delay_first_hit'] ) || owa_coreAPI::getSetting('base', 'delay_first_hit')) {
-			
-				$service = owa_coreAPI::serviceSingleton();
-				//check for persistant cookie
-				$v = $service->request->getOwaCookie('v');
-				
-				if (empty($v)) {
-					
-					$options['first_hit_tag'] = true;
-				}		
-			}
-			
 			if ( ! class_exists( 'owa_template' ) ) {
+			
 				require_once(OWA_BASE_CLASSES_DIR.'owa_template.php');
 			}
 		
@@ -314,6 +304,7 @@ class owa_caller extends owa_base {
 	function isOwaInstalled() {
 		
 		$version = owa_coreAPI::getSetting('base', 'schema_version');
+		
 		if ($version > 0) {
 			return true;
 		} else {

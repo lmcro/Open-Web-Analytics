@@ -157,7 +157,7 @@ class owa_baseModule extends owa_module {
 			'page_url'						=> array(
 				'default_value'					=> '(not set)',
 				'required'						=> true,
-				'data_type'						=> 'string',
+				'data_type'						=> 'url',
 				'callbacks'						=> array( 'owa_trackingEventHelpers::makeUrlCanonical' )
 			),
 			
@@ -204,21 +204,22 @@ class owa_baseModule extends owa_module {
 				'default_value'					=> '(not set)'
 			),
 			
-			'email_address'					=> array(
+			'user_email'					=> array(
 				'required'						=> true,
 				'callbacks'						=> array( 'owa_trackingEventHelpers::setEmailAddress' ),
-				'default_value'					=> '(not set)'
+				'default_value'					=> '(not set)',
+				'alternative_key'				=> 'email_address'
 			),
 			
 			'HTTP_REFERER'					=> array(
 				'required'						=> false,
-				'data_type'						=> 'string',
+				'data_type'						=> 'url',
 				'callbacks'						=> array()
 			),
 	
 			'target_url'					=> array(
 				'required'						=> false,
-				'data_type'						=> 'string',
+				'data_type'						=> 'url',
 				'callbacks'						=> array( 'owa_trackingEventHelpers::makeUrlCanonical' )
 			),
 			
@@ -238,7 +239,7 @@ class owa_baseModule extends owa_module {
 			
 			'session_referer'				=> array(
 				'required'						=> false,
-				'data_type'						=> 'string',
+				'data_type'						=> 'url',
 				'callbacks'						=> array()
 			),
 			// @todo investigate if this should be a required property so that a proper join can occur.
@@ -247,7 +248,22 @@ class owa_baseModule extends owa_module {
 				'callbacks'						=> array( 'owa_trackingEventHelpers::setSearchTerms' ),
 				'default_value'					=> '(not set)'
 			
-			)		
+			),
+			
+			'feed_subscription_id'					=> array(
+				'required'						=> false,
+				'callbacks'						=> array( ),
+				'default_value'					=> null,
+				'alternative_key'				=> 'sid'
+			),
+			
+			'attribs'						=> array(
+				'required'						=> false,
+				'data_type'						=> 'json',
+				'callbacks'						=> '',
+				'default_value'					=> ''
+			)
+				
 		);
 		
 		$this->registerTrackingProperties( 'regular', $regular );
@@ -316,7 +332,7 @@ class owa_baseModule extends owa_module {
 	
 			'page_uri' 			=> array(
 				'required'			=> true,
-				'callbacks'			=> array('owa_trackingEventHelpers::derivePageUri', 'owa_trackingEventHelpers::makeUrlCanonical')
+				'callbacks'			=> array('owa_trackingEventHelpers::derivePageUri')
 			),
 		
 			'is_repeat_visitor' => array(
@@ -487,13 +503,14 @@ class owa_baseModule extends owa_module {
 	 */
 	function registerFilters() {
 				
-
-		$this->registerFilter('attributed_campaign', $this, 'attributeCampaign', 10);
+		// I dont think this is used any more as logic is not in the tracking clients
+		//$this->registerFilter('attributed_campaign', $this, 'attributeCampaign', 10);
 		
-		if ( owa_coreAPI::getSetting('base', 'geolocation_service') === 'hostip' ) {
+		// @TODO hostip appears to be defunk. remove this block completely at some point.
+		//if ( owa_coreAPI::getSetting('base', 'geolocation_service') === 'hostip' ) {
 		
-			$this->registerFilter('geolocation', 'hostip', 'get_location', 10, 'classes');			
-		}
+			//$this->registerFilter('geolocation', 'hostip', 'get_location', 10, 'classes');			
+		//}
 
 
 		if ( defined( 'OWA_MAIL_EXCEPTIONS' ) ) {
@@ -501,14 +518,21 @@ class owa_baseModule extends owa_module {
 			$this->registerFilter('post_processed_tracking_event', $this, 'checkEventForType');
 		}
 		
-		if ( owa_coreAPI::getSetting( 'base', 'anonymize_ips' ) ) {
-			
-			$this->registerFilter('post_processed_tracking_event', $this, 'anonymizeIpAddress');
-		}
+		$this->registerFilter('tracker_tag_cmds', $this, 'addTrackerCmds', 0);
+		
+		
+	}
+	
+	function addTrackerCmds( $cmds ) {
+		
+		$cmds[] = "owa_cmds.push(['trackPageView']);";
+		$cmds[] = "owa_cmds.push(['trackClicks']);";
+		
+		return $cmds;
 	}
 		
 	/**
-	 * Register Filters
+	 * Register Background jobs
 	 *
 	 * The following lines register background jobs used by the
 	 * background daemon. 
@@ -570,19 +594,6 @@ class owa_baseModule extends owa_module {
 				'view_reports'
 		);
 		
-		$this->registerApiMethod('getDomstreams', 
-				array( $this, 'getDomstreams' ), 
-				array( 
-					'startDate', 
-					'endDate', 
-					'document_id', 
-					'siteId', 
-					'resultsPerPage', 
-					'page', 
-					'format' ), 
-				'', 
-				'view_reports'
-		);
 		
 		$this->registerApiMethod('getLatestVisits', 
 				array($this, 'getLatestVisits'), 
@@ -643,13 +654,6 @@ class owa_baseModule extends owa_module {
 				),
 				'', 
 				'view_reports'
-		);
-		
-		$this->registerApiMethod('getDomstream', 
-				array($this, 'getDomstream'), 
-				array('domstream_guid'),
-				'', 
-				'view_reports' 
 		);
 		
 		$this->registerApiMethod('getLatestActions', 
@@ -2282,7 +2286,7 @@ class owa_baseModule extends owa_module {
 		$this->addNavigationLinkInSubGroup( 'Content', 'base.reportFeeds', 'Feeds', 7);
 		$this->addNavigationLinkInSubGroup( 'Content', 'base.reportEntryPages', 'Entry Pages', 3);
 		$this->addNavigationLinkInSubGroup( 'Content', 'base.reportExitPages', 'Exit Pages', 4);
-		$this->addNavigationLinkInSubGroup( 'Content', 'base.reportDomstreams', 'Domstreams', 5);
+		
 		
 		//Actions
 		$this->addNavigationSubGroup('Action Tracking', 'base.reportActionTracking', 'Action Tracking', 1);
@@ -2477,8 +2481,7 @@ class owa_baseModule extends owa_module {
 		$this->registerEventHandler('dom.click', 'clickHandlers');
 		// Feed requests
 		$this->registerEventHandler('base.feed_request', 'feedRequestHandlers');
-		// domstreams
-		$this->registerEventHandler('dom.stream', 'domstreamHandlers');
+		
 		// actions
 		$this->registerEventHandler('track.action', 'actionHandler');
 		
@@ -2721,44 +2724,7 @@ class owa_baseModule extends owa_module {
 		}
 	}
 	
-	function getDomstreams($start_date, $end_date, $document_id = '', $siteId = '', $resultsPerPage = 20, $page = 1, $format = '') {
-		
-		$rs = owa_coreAPI::supportClassFactory('base', 'paginatedResultSet');
-		$db = owa_coreAPI::dbSingleton();
-		$db->selectFrom('owa_domstream');
-		$db->selectColumn("domstream_guid, max(timestamp) as timestamp, page_url, duration");
-		//$db->selectColumn('id');
-		$db->selectColumn('document_id');
-		$db->groupby('domstream_guid');
-		//$db->selectColumn('events');
-		$db->where('yyyymmdd', array('start' => $start_date, 'end' => $end_date), 'BETWEEN');
-		if ($document_id) {
-			$db->where('document_id', $document_id);
-		}
-		
-		if ($siteId) {
-			$db->where('site_id', $siteId);
-		}
-		
-		$db->orderBy('timestamp', 'DESC');
-		
-		// pass limit to rs object if one exists
-		$rs->setLimit($resultsPerPage);
-			
-		// pass page to rs object if one exists
-		$rs->setPage($page);
-		
-		$results = $rs->generate($db);
-
-		$rs->setLabels(array('id' => 'Domstream ID', 'page_url' => 'Page Url', 'duration' => 'Duration', 'timestamp' => 'Timestamp'));
-		
-		if ($format) {
-			owa_lib::setContentTypeHeader($format);
-			return $rs->formatResults($format);		
-		} else {
-			return $rs;
-		}
-	}
+	
 	
 	function getVisitDetail($sessionId, $format = '') {
 	
@@ -2995,6 +2961,12 @@ class owa_baseModule extends owa_module {
 		return $trans_detail;
 	}
 	
+	/**
+	 * Deprecated 
+	 *
+	 * @todo remove	
+	 *	
+	*/
 	function attributeCampaign( $tracking_event ) {
 		
 		$mode = owa_coreAPI::getSetting('base', 'campaign_attribution_mode');
@@ -3112,81 +3084,6 @@ class owa_baseModule extends owa_module {
 			return $rs;
 		}
 	}
-	
-	function getDomstream( $domstream_guid ) {
-		
-		if ( ! $domstream_guid ) {
-			return;
-		}
-		// Fetch document object
-		$d = owa_coreAPI::entityFactory('base.domstream');
-		//$d->load($this->getParam('domstream_id'));
-		//$json = new Services_JSON();
-		//$d->set('events', $json->decode($d->get('events')));
-		
-		$db = owa_coreAPI::dbSingleton();
-		$db->select('*');
-		$db->from( $d->getTableName() );
-		$db->where( 'domstream_guid', $domstream_guid );
-		$db->orderBy('timestamp', 'ASC');
-		$ret = $db->getAllRows();
-		//print_r($ret);
-		$combined = '';
-		
-		if ( $ret ) {
-			// if rows then combine the events
-			foreach ($ret as $row) {
-				$combined = $this->mergeStreamEvents( $row['events'], $combined );
-			}
-			
-			$row['events'] = json_decode($combined);
-		} else {
-			// no rows found for some reason…..
-			$error = 'No domstream rows found for domstream_guid: ' . $domstream_guid;
-			owa_coreAPI::debug( $error );
-			$row = array('errors' => $error);
-		}
-			
-		$t = new owa_template;
-		$t->set_template('json.php');
-		//$json = new Services_JSON();
-		// set
-		
-		// if not found look on the request scope.
-		$callback = owa_coreAPI::getRequestParam('jsonpCallback');
-		if ( ! $callback ) {
-			
-			$t->set('json', json_encode( $row ) );
-		} else {
-			$body = sprintf("%s(%s);", $callback, json_encode( $row ) );
-			$t->set('json', $body);
-		}
-		return $t->fetch();	
-	}
-	
-	function mergeStreamEvents($new, $old = '') {
-    	
-    		if ( $old) {
-    			$old = json_decode($old);
-    		} else {
-    			$old = array();
-    		}
-    		owa_coreAPI::debug('old: '.print_r($old, true));
-    		$new = json_decode($new);
-    		owa_coreAPI::debug('new: '.print_r($new, true));
-    		//$combined = array_merge($old, $new);
-    		//array_splice($old, count($old), 0, $new);
-    		
-    		foreach ($new as $v) {
-    			$old[] = $v;
-    		}
-    		$combined = $old;
-    		owa_coreAPI::debug('combined: '.print_r($combined, true));
-    		owa_coreAPI::debug('combined count: '.count($combined));
-    		$combined = json_encode($combined);
-    		return $combined;
-    	
-    }
     
     function checkEventForType( $event ) {
 		
@@ -3196,23 +3093,6 @@ class owa_baseModule extends owa_module {
 			
 			$e = owa_coreAPI::errorSingleton();
 			$e->mailErrorMsg( print_r( $event->getProperties(), true ), 'Unknown Event Type' );		
-		}
-		
-		return $event;
-	}
-	
-	public function anonymizeIpAddress( $event ) {
-	
-		$ip_address = $event->get( 'ip_address');
-		
-		if ( $ip_address && strpos($ip_address, '.' ) ) {
-		
-			$ip = explode( '.', $ip_address );
-			array_pop($ip);
-			$ip = implode('.', $ip);
-			
-			$event->set( 'ip_address', $ip);
-			$event->set('full_host', '(not set)');
 		}
 		
 		return $event;

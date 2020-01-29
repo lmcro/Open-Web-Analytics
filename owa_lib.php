@@ -430,6 +430,10 @@ class owa_lib {
 			$url.= 's';
 		} elseif ( isset( $_SERVER['SERVER_PORT'] ) && $_SERVER['SERVER_PORT'] == 443 ) {
 			$url.= 's';
+		} elseif ( isset( $_SERVER['HTTP_ORIGIN'] ) && substr( $_SERVER['HTTP_ORIGIN'], 0, 5 ) === 'https' ) {
+			$url.= 's';
+		} elseif ( isset( $_SERVER['HTTP_REFERER'] ) && substr( $_SERVER['HTTP_REFERER'], 0, 5 ) === 'https' ) {
+			$url.= 's';
 		}
 		
 		if ( isset( $_SERVER['HTTP_HOST'] ) ) {
@@ -450,15 +454,9 @@ class owa_lib {
 		return $url;
 	}
 	
-	public static function inputFilter($array) {
+	public static function inputFilter($input, $options = array() ) {
 		
-		if ( ! class_exists( 'owa_InputFilter' ) ) {
-			require_once(OWA_INCLUDE_DIR.'/class.inputfilter.php');
-		}
-		
-		$f = new owa_InputFilter;		
-		return $f->process($array);
-		
+		return owa_sanitize::cleanInput( $input, $options );		
 	}
 	
 	public static function fileInclusionFilter($str) {
@@ -564,7 +562,7 @@ class owa_lib {
      * @param string $url
      */
     public static function redirectBrowser($url) {
-    	
+    	//print ($url); exit;
 	    // 302 redirect to URL 
 		header ('Location: '.$url);
 		header ('HTTP/1.0 302 Found');
@@ -1000,10 +998,19 @@ class owa_lib {
 	 * @param string $password
 	 * @return string
 	 */
-	public static function encryptPassword($password) {
+	public static function encryptOldPassword($password) {
 		
 		return md5(strtolower($password).strlen($password));
 		//return owa_coreAPI::saltedHash( $password, 'auth');
+	}
+	public static function encryptPassword($password) {
+		
+		// check function exists to support older PHP
+		if ( function_exists(password_hash) ) {
+			return password_hash( $password, PASSWORD_DEFAULT );
+		} else {
+			return self::encryptOldPassword($password);
+		}
 	}
 	
 	public static function hash( $hash_type = 'md5', $data, $salt = '' ) {
@@ -1321,6 +1328,51 @@ class owa_lib {
 				return true;
 			}	
 		}
+	}
+	
+	public static function isValidIp( $ip_address ) {
+		
+		// if valid ip address
+		if ( ! empty( $ip_address ) 
+			&& ip2long( $ip_address ) != -1 
+			&& ip2long( $ip_address ) != false
+		) {
+		
+			return true;
+		}
+		
+	}
+	
+	// check to see if the IP address falls within known private IP ranges
+	public static function isPrivateIp( $ip_address ) {
+		
+		$ip = ip2long( $ip_address);
+		
+		$private_ip_ranges = array (
+			array('0.0.0.0','2.255.255.255'),
+			array('10.0.0.0','10.255.255.255'),
+			array('127.0.0.0','127.255.255.255'),
+			array('169.254.0.0','169.254.255.255'),
+			array('172.16.0.0','172.31.255.255'),
+			array('192.0.2.0','192.0.2.255'),
+			array('192.168.0.0','192.168.255.255'),
+			array('255.255.255.0','255.255.255.255')
+		);
+			
+		//check to see if it falls within a known private range
+		foreach ( $private_ip_ranges as $range ) {
+			
+			$min = ip2long( $range[0] );
+			$max = ip2long( $range[1] );
+			
+			if ( ( $ip >= $min ) && ( $ip <= $max ) ) { 
+				
+				return true;
+			}
+		}
+		
+		// if it makes it through the checks then it's not private.
+		return false;
 	}
 }
 

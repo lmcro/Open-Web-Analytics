@@ -81,34 +81,11 @@
 		On</option>
 			</select>
 		</div>
-	</div>		
-	
-	<div class="setting" id="first_hit">	
-		<div class="title">Delay First Hit</div>
-		<div class="description">This setting controls whether OWA should delay logging the first hit of new visitors until a secondary http request for a special web bug is made. This tactic is used to foil spiders/robots that spoof their user agents in an attempt to appear like a normal web browser.</div> 
-		<div class="field">
-			<select name="<?php echo $this->getNs();?>config[base.delay_first_hit]">
-				<option value="0" <?php if ($config['delay_first_hit'] == false):?>SELECTED<?php endif;?>>Off</option>
-				<option value="1" <?php if ($config['delay_first_hit'] == true):?>SELECTED<?php endif;?>>On</option>	
-			</select>
-		</div>
 	</div>
-	
-	<div class="setting" id="log_dom_streams">	
-		<div class="title">Log Domstreams</div>
-		<div class="description">This setting controls whether OWA should should log Domstreams.</div> 
-		<div class="field">
-			<select name="<?php echo $this->getNs();?>config[base.log_dom_streams]">
-				<option value="0" <?php if ($config['log_dom_streams'] == false):?>SELECTED<?php endif;?>>Off</option>
-				<option value="1" <?php if ($config['log_dom_streams'] == true):?>SELECTED<?php endif;?>>On</option>	
-			</select>
-		</div>
-	</div>	
-
 	
 	<div class="setting" id="p3p_policy">	
 		<div class="title">P3P Compact Privacy Policy</div>
-		<div class="description">This setting controls the P3P compact privacy policy that is returned to the browser when OWA sets cookies. Click <a href="http://www.p3pwriter.com/LRN_111.asp">here</a> for more information on compact privacy policies and choosing the right one for your web site.</div>
+		<div class="description">This setting controls the P3P compact privacy policy that is returned to the browser when OWA sets cookies. Click <a href="https://www.w3.org/P3P/">here</a> for more information on compact privacy policies and choosing the right one for your web site.</div>
 		<div class="field"><input type="text" size="50" name="<?php echo $this->getNs();?>config[base.p3p_policy]" value="<?php $this->out( $config['p3p_policy'] );?>"></div>
 	</div>
 	

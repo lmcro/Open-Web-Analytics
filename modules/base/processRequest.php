@@ -42,38 +42,11 @@ class owa_processRequestController extends owa_processEventController {
 	
 	function action() {
 		
-		// Control logic
-		
-		// Do not log if the first_hit cookie is still present.
-        $fh_state_name = owa_coreAPI::getSetting('base', 'first_hit_param');
-		$fh = owa_coreAPI::getStateParam($fh_state_name);
-        
-        if (!empty($fh)) {
-        	$this->e->debug('Clearing left over first first hit cookie.');
-			owa_coreAPI::clearState($fh_state_name);
-			$this->e->debug('Left over first first hit cookie found...aborting request as likely a robot.');
-			$this->event->set('do_not_log', true);
-			return;
-		}
-		
-		// set variety of new session properties.
-		if ($this->event->get('is_new_session')) {
-			
-		}	
+		// Control logic	
 	}
 	
 	function post() {
 				
-		if ( owa_coreAPI::getSetting('base', 'delay_first_hit') ) {	
-			
-			// If not, then make sure that there is an inbound visitor_id
-			if ( ! $this->event->get( 'visitor_id' ) ) {
-				// Log request properties to a cookie for processing by a second request and return
-				owa_coreAPI::debug('Logging this request to first hit cookie.');
-				return $this->log_first_hit();
-			}
-		}
-		
 		owa_coreAPI::debug('Logging '.$this->event->getEventType().' to event queue...');
 		
 		return $this->addToEventQueue();

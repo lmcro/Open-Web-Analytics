@@ -82,6 +82,7 @@ OWA.commandQueue = function() {
 
 	OWA.debug('Command Queue object created');
 	var asyncCmds = [];
+	var is_paused = false;
 }
 
 OWA.commandQueue.prototype = {
@@ -108,20 +109,36 @@ OWA.commandQueue.prototype = {
 		OWA.debug('cmd queue object name %s', obj_name);
 		OWA.debug('cmd queue object method name %s', method);
 		
-		// is OWATracker created?
-		if ( typeof window[obj_name] == "undefined" ) {
-			OWA.debug('making global object named: %s', obj_name);
-			window[obj_name] = new OWA.tracker( { globalObjectName: obj_name } );
+		if ( method === "pause-owa" ) {
+			
+			this.pause();
 		}
 		
-		window[obj_name][method].apply(window[obj_name], args);
+		// check to see if the command queue has been paused
+		// used to stop tracking		
+		if ( ! this.is_paused ) {
 		
+			// is OWATracker created?
+			if ( typeof window[obj_name] == "undefined" ) {
+				OWA.debug('making global object named: %s', obj_name);
+				window[obj_name] = new OWA.tracker( { globalObjectName: obj_name } );
+			}
+			
+			window[obj_name][method].apply(window[obj_name], args);
+		}
+		
+		if ( method === "unpause-owa") {
+			
+			this.unpause();
+		}
+			
 		if ( callback && ( typeof callback == 'function') ) {
 			callback();
 		}
+		
 	},
 	
-	loadCmds: function(cmds) {
+	loadCmds: function( cmds ) {
 		
 		this.asyncCmds = cmds;
 	},
@@ -146,6 +163,18 @@ OWA.commandQueue.prototype = {
 			this.push(this.asyncCmds[i]);
 		}
 		*/
+	},
+	
+	pause: function() {
+		
+		this.is_paused = true;
+		OWA.debug('Pausing Command Queue');
+	},
+	
+	unpause: function() {
+		
+		this.is_paused = false;
+		OWA.debug('Un-pausing Command Queue');
 	}
 };
 
@@ -167,9 +196,9 @@ OWA.tracker = function( options ) {
 	this.startTime = this.getTimestamp();
 	
 	// register cookies
-	OWA.registerStateStore('v', 3600, '', 'assoc');
-	OWA.registerStateStore('s', 3600, '', 'assoc');
-	OWA.registerStateStore('c', 3600, '', 'json');
+	OWA.registerStateStore('v', 364, '', 'assoc');
+	OWA.registerStateStore('s', 364, '', 'assoc');
+	OWA.registerStateStore('c', 60, '', 'json');
 	OWA.registerStateStore('b', '', '', 'json');
 	
 	// Configuration options
@@ -230,16 +259,6 @@ OWA.tracker = function( options ) {
 	// check to se if an overlay session is active
 	this.checkForOverlaySession();
 	
-	// create page object.
-	this.page = new OWA.event();
-	
-	// merge page properties from global owa_params object
-	if (typeof owa_params != 'undefined') {
-		// merge page params from the global object if it exists
-		if (owa_params.length > 0) {
-			this.page.merge(owa_params);
-		}
-	}
 }
 
 OWA.tracker.prototype = {
@@ -547,7 +566,7 @@ OWA.tracker.prototype = {
 			
 			// set the overlay cookie
 			OWA.util.setCookie( OWA.getSetting('ns') + 'overlay',a, '','/', document.domain );
-			////alert(OWA.util.readCookie('owa_overlay') );
+			//alert(OWA.util.readCookie('owa_overlay') );
 			// pause tracker so we dont log anything during an overlay session
 			this.pause();
 			// start overlay session
@@ -613,7 +632,7 @@ OWA.tracker.prototype = {
 	 */
 	setPageTitle: function(title) {
 		
-		this.setGlobalEventProperty("page_title", title);
+		this.setGlobalEventProperty("page_title", OWA.util.trim( title ) );
 	},
 	
 	/**
@@ -621,7 +640,7 @@ OWA.tracker.prototype = {
 	 */
 	setPageType : function(type) {
 		
-		this.setGlobalEventProperty("page_type", type);
+		this.setGlobalEventProperty("page_type", OWA.util.trim( type ) );
 	},
 	
 	/**
@@ -629,7 +648,7 @@ OWA.tracker.prototype = {
 	 */
 	setUserName : function( value ) {
 		
-		this.setGlobalEventProperty( 'user_name', value );
+		this.setGlobalEventProperty( 'user_name', OWA.util.trim( value ) );
 	},
 	
 	/**
@@ -727,8 +746,10 @@ OWA.tracker.prototype = {
 	 * Deprecated
 	 */
 	log : function() {
-    	this.page.setEventType("base.page_request");
-    	return this.logEvent(this.page);
+	
+		var event = new OWA.event
+    	event.setEventType("base.page_request");
+    	return this.logEvent(event);
     },
     
     isObjectType : function(obj, type) {
@@ -741,9 +762,6 @@ OWA.tracker.prototype = {
     logEvent : function (properties, block, callback) {
     	
     	if (this.active) {
-    	
-    		// append site_id to properties
-    		properties.site_id = this.getSiteId();
     	
 	    	var url = this._assembleRequestUrl(properties);
 	    	var limit = this.getOption('getRequestCharacterLimit');
@@ -912,8 +930,9 @@ OWA.tracker.prototype = {
         	var doc = that.getIframeDocument( iframe );
             
             if ( doc ) {
+		    clearInterval(timer); //clear the interval before submitting data, race condition could occur otherwise resulting in duplicate tracked events
             	that.postFromIframe(iframe, data);
-				clearInterval(timer);
+				
             }
 			
 			            
@@ -1184,25 +1203,26 @@ OWA.tracker.prototype = {
 	    var targ = this._getTarget(e);
 	    
 	    var dom_name = '(not set)';
-	    if ( targ.hasOwnProperty && targ.hasOwnProperty( 'name' ) && targ.name.length > 0 ) {
+	    if ( targ.hasAttribute('name') && targ.name.length > 0 ) {
 	    	dom_name = targ.name;
 	    }
 	    click.set("dom_element_name", dom_name);
 	    
 	    var dom_value = '(not set)';
-	    if ( targ.hasOwnProperty && targ.hasOwnProperty( 'value' ) && targ.value.length > 0 ) { 
+	    if ( targ.hasAttribute('value') && targ.value.length > 0 ) { 
 	    	dom_value = targ.value;
 	    }
 	    click.set("dom_element_value", dom_value);
 	    
 	    var dom_id = '(not set)';
-	    if ( targ.hasOwnProperty && targ.hasOwnProperty( 'id' ) && targ.id.length > 0) {
+	    if ( targ.id && targ.id.length > 0 ) {
 	    	dom_id = targ.id;
 	    }
 	    click.set("dom_element_id", dom_id);
 	    
 	    var dom_class = '(not set)';
-	    if ( targ.hasOwnProperty && targ.hasOwnProperty( 'className' ) && targ.className.length > 0) {
+	   // if ( targ.hasOwnProperty && targ.hasOwnProperty( 'className' ) && targ.className.length > 0) {
+	    if ( targ.className && targ.className.length > 0 ) {
 	    	dom_class = targ.className;
 	    }
 	    click.set("dom_element_class", dom_class);
@@ -1470,10 +1490,6 @@ OWA.tracker.prototype = {
 			campaign_params['at'] = '(not set)';
 		}
 		
-		if (this.isNewCampaign) {
-			//campaign_params['ts'] = this.page.get('timestamp');
-		}
-		
 		return campaign_params;
 	},
 	
@@ -1710,7 +1726,7 @@ OWA.tracker.prototype = {
 			var host = uri.getHost();
 			var term = uri.getQueryParam(query_param);
 			
-			if ( OWA.util.strpos(host, domain) && uri.isQueryParam( query_param ) ) {
+			if ( OWA.util.strpos(host, domain) ) {
 				OWA.debug( 'Found search engine: %s with query param %s:, query term: %s', domain, query_param, term);
 				
 				return {d: domain, q: query_param, t: term };
@@ -1841,10 +1857,10 @@ OWA.tracker.prototype = {
 			visitor_id = OWA.util.generateRandomGuid( this.siteId );
 			
 			this.globalEventProperties.is_new_visitor = true;
-			OWA.setState( 'v', 'vid', visitor_id, true );
 			OWA.debug('Creating new visitor id');
-		}
+		} 
 		// set property on event object
+		OWA.setState( 'v', 'vid', visitor_id, true );
 		this.setGlobalEventProperty( 'visitor_id', visitor_id );
 		
 		if (callback && (typeof(callback) === "function")) {
@@ -2001,16 +2017,6 @@ OWA.tracker.prototype = {
 		}
 	},
 	
-	setPageProperties : function ( properties ) {
-		
-		for (var prop in properties) {
-			
-			if ( properties.hasOwnProperty( prop ) ) {
-				this.page.set( prop, properties[prop] );
-			}
-		}
-	},
-	
 	/**
 	 * Set a custom variable
 	 *
@@ -2089,20 +2095,30 @@ OWA.tracker.prototype = {
      */
     addDefaultsToEvent : function ( event, callback ) {
     	
+    	event.set( 'site_id', this.getSiteId() );
     	
-    	if ( ! event.get( 'page_url') ) {
+    	if ( ! event.get( 'page_url') && ! this.getGlobalEventProperty('page_url') ) {
+    		
     		event.set('page_url', this.getCurrentUrl() );
     	}
     	
-    	if ( ! event.get( 'HTTP_REFERER') ) {
+    	if ( ! event.get( 'HTTP_REFERER') && ! this.getGlobalEventProperty('HTTP_REFERER')) {
+    		
     		event.set('HTTP_REFERER', document.referrer );
     	}
     	
-    	if ( ! event.get( 'page_title') ) {
+    	if ( ! event.get( 'page_title') && ! this.getGlobalEventProperty('page_title') ) {
+    		 
     		event.set('page_title', OWA.util.trim( document.title ) );
+    	}
+    	
+    	if ( ! event.get( 'timestamp') ) {
+    		 
+    		event.set('timestamp', this.getTimestamp() );
     	}
    		
    		if (callback && ( typeof( callback ) == 'function' ) ) {
+   			
    			callback( event );
    		}
     	
@@ -2229,19 +2245,17 @@ OWA.tracker.prototype = {
     /**
 	 * Logs a page view event
 	 */
-	trackPageView : function(url) {
+	trackPageView : function( url ) {
 		
+		var event = new OWA.event;
 		
 		if (url) {
-			this.page.set('page_url', url);
+			event.set('page_url', url);
 		}
-		// set default event properties
-    	//this.setGlobalEventProperty( 'HTTP_REFERER', document.referrer );
-    	//this.setPageTitle(document.title);
-		this.page.set('timestamp', this.startTime);
-		this.page.setEventType("base.page_request");
 		
-		return this.trackEvent(this.page);
+		event.setEventType( "base.page_request" );
+		
+		return this.trackEvent( event );
 	},
 	
 	trackAction : function(action_group, action_name, action_label, numeric_value) {
@@ -2249,8 +2263,6 @@ OWA.tracker.prototype = {
 		var event = new OWA.event;
 		
 		event.setEventType('track.action');
-		event.set('site_id', this.getSiteId());
-		event.set('page_url', this.getCurrentUrl() );
 		event.set('action_group', action_group);
 		event.set('action_name', action_name);
 		event.set('action_label', action_label);
@@ -2279,10 +2291,6 @@ OWA.tracker.prototype = {
 			}
 			domstream.setEventType( 'dom.stream' );
 			domstream.set( 'domstream_guid', this.domstream_guid );
-			domstream.set( 'site_id', this.getSiteId());
-			domstream.set( 'page_url', this.getCurrentUrl() );
-			//domstream.set( 'timestamp', this.startTime);
-			domstream.set( 'timestamp', OWA.util.getCurrentUnixTimestamp() );
 			domstream.set( 'duration', this.getElapsedTime());
 			domstream.set( 'stream_events', JSON.stringify(this.event_queue));
 			domstream.set( 'stream_length', this.event_queue.length );

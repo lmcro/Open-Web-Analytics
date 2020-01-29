@@ -155,13 +155,25 @@ class owa_requestContainer {
 			$this->request_type = 'cli';
 		}
 		
-		if ( $this->request_type === 'get' || $this->request_type === 'post' ) {
+		if ( $this->request_type != 'cli' ) {
 			
 			$this->current_url = owa_lib::get_current_url();
 		}
 		
 		// Clean Input arrays
-		$this->request = owa_lib::inputFilter($params);
+		if ( $params ) {
+			
+			if ( ! owa_coreAPI::getSetting('base', 'tracking_mode') ) {
+				
+				$params = owa_sanitize::cleanInput( $params, array('remove_html' => true) );
+			
+			}
+			if ( is_array( $params ) && ! empty( $params ) ) {
+				
+				$this->request = $params;
+			}
+		}
+		
 		// get namespace
 		$ns = owa_coreAPI::getSetting('base', 'ns');
 		// strip action and do params of nasty include exploits.
@@ -261,7 +273,7 @@ class owa_requestContainer {
 		}
 		
 		// clean params after decode
-		$params = owa_lib::inputFilter($params);
+		//$params = owa_lib::inputFilter($params);
 		// replace owa params
 		$this->owa_params = $params;
 		//debug

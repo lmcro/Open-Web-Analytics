@@ -392,7 +392,7 @@ class owa_client extends owa_caller {
 		
 		// add custom variables to global properties if not there already
     	for ( $i=1; $i <= owa_coreAPI::getSetting('base', 'maxCustomVars'); $i++ ) {
-    		$cv_param_name = 'cv' + $i;
+    		$cv_param_name = 'cv' . $i;
     		$cv_value = '';
     		
     		// if the custom var is not already a global property
@@ -806,7 +806,7 @@ class owa_client extends owa_caller {
 				$term = $uri['query_params'][$query_param];
 			}
 			
-			if ( strpos($host, $domain) && $term ) {
+			if ( strpos($host, $domain) ) {
 				owa_coreAPI::debug( 'Found search engine: %s with query param %s:, query term: %s', $domain, $query_param, $term);
 				
 				return array('d' => $domain, 'q' => $query_param, 't' => $term );

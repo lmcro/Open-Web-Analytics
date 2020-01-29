@@ -92,14 +92,17 @@ class owa_trackingEventHelpers {
 		foreach ( $properties as $name => $property ) {
 			
 			$value = $event->get( $name );
-			/*
+			
+			// sanitize properties by datatype
+			$data_type = '';
+			
 			if ( isset( $property['data_type'] ) && $property['data_type'] ) {
+				
 				$data_type = $property['data_type'];
 			}
 			
-			
 			$value = $this->setDataType( $value, $data_type );
-			*/
+			
 			$required = false;
 			
 			if ( isset( $property['required'] ) ) {
@@ -130,7 +133,6 @@ class owa_trackingEventHelpers {
 			}
 			
 			// set value on the event
-				
 			if ( $required || $value || $value === 0 || $value === "0" ) {
 				
 				$event->set( $name,  $value );
@@ -146,6 +148,21 @@ class owa_trackingEventHelpers {
 			
 				$var = $var + 0;
 				break;
+			case "string":
+			
+				$var = owa_sanitize::cleanInput( $var, array('remove_html' => true) );
+				break;
+			case "url":
+			
+				$var = owa_sanitize::cleanUrl( $var );
+				break;
+			case "json":
+			
+				$var = owa_sanitize::cleanJson( $var );
+				break;
+			default:
+			
+				$var = owa_sanitize::cleanInput( $var, array('remove_html' => true) );
 		}
 		
 		return $var;
@@ -193,11 +210,13 @@ class owa_trackingEventHelpers {
 					$event->set( 'cv'.$i.'_name', $pieces[0] );
 					$event->set( 'cv'.$i.'_value', $pieces[1] );
 				}
+				
+				$event->delete( 'cv'.$i );
 			}
 		}
 	}
 	
-		static function remoteHostDefault() {
+	static function remoteHostDefault() {
 	
 		return owa_coreAPI::getServerParam('REMOTE_HOST');	
 	}
@@ -219,7 +238,70 @@ class owa_trackingEventHelpers {
 	
 	static function ipAddressDefault() {
 		
-		return owa_coreAPI::getServerParam('REMOTE_ADDR');	
+		$ip = '';
+		
+		// array of SERVER params that could possibly contain the IP address
+		// ordered by probability of relevant match
+		$possible_ip_params = array(
+			
+			'HTTP_CLIENT_IP', 
+			'HTTP_X_FORWARDED_FOR', 
+			'HTTP_X_CLUSTER_CLIENT_IP', 
+			'HTTP_FORWARDED_FOR', 
+			'REMOTE_ADDR'
+		
+		);
+		
+		// check for IP address, break when found.
+		foreach ( $possible_ip_params as $param ) {
+			
+			if ( owa_coreAPI::getServerParam( $param ) ) {
+		
+ 				$ip = owa_coreAPI::getServerParam( $param );
+ 				owa_coreAPI::debug("ip address found in $param");
+ 				break;
+ 			}
+		}
+				
+ 		// check to see if there are multiple ips possibly passed from a poxy
+ 		if ( strpos( $ip, ',' ) ) {
+	 		
+	 		owa_coreAPI::debug('multiple ip addresses found');
+	 		// evaluate each IP to make sure it's valid and that it's not a private IP
+	 		$candidate_ips = explode( ',', $ip );
+	 		
+	 		foreach ( $candidate_ips as $candidate_ip ) {
+		 		
+		 		$candidate_ip = trim( $candidate_ip );
+		 		
+		 		if ( owa_lib::isValidIp( $candidate_ip ) && ! owa_lib::isPrivateIp( $candidate_ip ) ) {
+			 		
+			 		$ip = $candidate_ip;
+			 		
+			 		break;
+		 		}
+	 		}
+	 		
+	 		// if still no valid public IP then just use the first one found
+	 		if ( strpos( $ip, ',' ) ) {
+
+	 			$ip = trim( $candidate_ips[0] ) ;
+	 		}
+	 		
+ 		}
+ 		
+ 		// Anonymize IP if needed.
+ 		if ( owa_coreAPI::getSetting( 'base', 'anonymize_ips' ) ) {
+	 		if ( $ip && strpos( $ip , '.' ) ) {
+			
+				$ip = explode( '.', $ip );
+				array_pop($ip);
+				$ip = implode('.', $ip);
+				$ip .= '.0';
+			}
+		}
+		
+ 		return $ip;
 	}
 	
 	static function timestampDefault() {
@@ -362,7 +444,8 @@ class owa_trackingEventHelpers {
 			owa_coreAPI::debug('no site_id passed to make makeUrlCanonical. Returning URL as is.');
 			return $url;
 		} 			
-			
+		
+		$url = html_entity_decode( $url );
 		// remove port, pass, user, and fragment
 		$url = owa_lib::unparseUrl( parse_url( $url ), array( 'port', 'user', 'pass', 'fragment' ) );
 		
@@ -701,20 +784,26 @@ class owa_trackingEventHelpers {
 			
 				$cu = owa_coreAPI::getCurrentUser();
 				
-				return $cu->user->get( 'user_id' );
+				$user_name = $cu->user->get( 'user_id' );
 			}
+			
+			return $user_name;
 		}
 	}
 	
 	static function setEmailAddress ( $email_address, $event ) {
 		
 		if ( owa_coreAPI::getSetting( 'base', 'log_visitor_pii' ) ) {
-		
-			$cu = owa_coreAPI::getCurrentUser();
 			
-			return $cu->user->get( 'email_address' );
+			if ( ! $email_address && owa_coreAPI::getSetting( 'base', 'log_owa_user_names' ) ) {
+			
+				$cu = owa_coreAPI::getCurrentUser();
+				
+				$email_address = $cu->user->get( 'email_address' );
+			}
+			
+			return $email_address;
 		}
-		
 	}
 		
 }
